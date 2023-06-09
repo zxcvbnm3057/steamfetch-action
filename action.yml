@@ -76,6 +76,10 @@ inputs:
     description: "If true then the .DepotDownloader folder will not be deleted from the out directory."
     required: false
     default: false
+  depotdownloader-version:
+    description: "Optionally specify the depotdownloader version to use. default as latest"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -86,13 +90,26 @@ runs:
       env:
         DOTNET_NOLOGO: true
         DOTNET_CLI_TELEMETRY_OPTOUT: true
-    - name: "Download DepotDownloader"
-      uses: "suisei-cn/actions-download-file@v1"
+    - name: Cache DepotDownloader
+      uses: actions/cache@v3
       with:
-        url: "https://github.com/SteamRE/DepotDownloader/releases/download/DepotDownloader_2.4.6/depotdownloader-2.4.6.zip"
-        target: "${{ github.action_path }}/depotdownloader/"
-    - run: "unzip -o ./depotdownloader-2.4.6.zip -d ./"
-      working-directory: "${{ github.action_path }}/depotdownloader/"
+        path: |
+          ${{ github.action_path }}/depotdownloader
+        key: |
+          depotdownloader-${{ inputs.depotdownloader-version }}
+    - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+      name: "Download and build DepotDownloader"
+      uses: "actions/checkout@v3"
+      with:
+        repository: SteamRE/DepotDownloader
+        path: "${{ github.workspace }}/depotdownloader-source/"
+        submodules: true
+    - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+      run: |
+        cd ${{ github.workspace }}/depotdownloader-source/
+        dotnet restore
+        dotnet publish --configuration Release -o ${{ github.action_path }}/depotdownloader
+        rm -rf ${{ github.workspace }}/depotdownloader-source/
       shell: bash
     - run: chmod +x $GITHUB_ACTION_PATH/job.sh
       shell: bash
